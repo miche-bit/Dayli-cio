@@ -32,8 +32,10 @@ async function revisarYNotificar() {
   });
 
   const nombresVehiculos = vehiculosSinRegistro.map(v => v.nombre);
+  console.log(`[CRON ${new Date().toISOString()}] Vehículos pendientes hoy: ${nombresVehiculos.join(', ')}. Enviando a: ${correos.join(', ')}`);
+
   const resultado = await enviarRecordatorio(correos, fechaLegible, nombresVehiculos);
-  console.log(`[CRON ${new Date().toISOString()}] Recordatorio ${fecha} — vehículos pendientes: ${nombresVehiculos.join(', ')}:`, resultado);
+  console.log(`[CRON ${new Date().toISOString()}] Resultado:`, resultado);
 
   db.prepare('INSERT OR IGNORE INTO notificaciones_enviadas (fecha) VALUES (?)').run(fecha);
 }

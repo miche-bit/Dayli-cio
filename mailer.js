@@ -14,6 +14,12 @@ function crearTransportador() {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    // Timeouts explícitos: sin esto, si Gmail no responde (credenciales
+    // mal formadas, firewall saliente, etc.) la petición se queda colgada
+    // indefinidamente en vez de fallar con un error claro.
+    connectionTimeout: 10000, // 10s para establecer conexión TCP
+    greetingTimeout: 10000,   // 10s para el saludo SMTP inicial
+    socketTimeout: 15000,     // 15s de inactividad en el socket
   });
 }
 
@@ -55,14 +61,21 @@ async function enviarRecordatorio(correos, fechaLegible, vehiculosPendientes = [
     </div>
   </div>`;
 
-  await transportador.sendMail({
-    from: `"El Dayli-cio" <${process.env.SMTP_USER}>`,
-    to: correos.join(', '),
-    subject: `⚠️ ${vehiculosPendientes.length} ${palabraVehiculo} sin registrar hoy (${fechaLegible})`,
-    html,
-  });
+  console.log(`[MAILER] Intentando enviar a: ${correos.join(', ')}...`);
 
-  return { enviado: true };
+  try {
+    await transportador.sendMail({
+      from: `"El Dayli-cio" <${process.env.SMTP_USER}>`,
+      to: correos.join(', '),
+      subject: `⚠️ ${vehiculosPendientes.length} ${palabraVehiculo} sin registrar hoy (${fechaLegible})`,
+      html,
+    });
+    console.log('[MAILER] Correo enviado con éxito');
+    return { enviado: true };
+  } catch (error) {
+    console.error('[MAILER] ERROR al enviar correo:', error.message);
+    return { enviado: false, motivo: `Error SMTP: ${error.message}` };
+  }
 }
 
 module.exports = { enviarRecordatorio };

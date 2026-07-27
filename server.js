@@ -248,9 +248,11 @@ app.get('/api/calendario', (req, res) => {
 });
 
 // Endpoint manual para forzar la revisión/envío del recordatorio (pruebas)
-app.post('/api/notificar-ahora', async (req, res) => {
-  await revisarYNotificar();
-  res.json({ ok: true });
+// Responde de inmediato y deja el envío corriendo en segundo plano, para
+// que un SMTP lento no cause un 502 por timeout del proxy de Railway.
+app.post('/api/notificar-ahora', (req, res) => {
+  res.json({ ok: true, motivo: 'Revisión iniciada, revisa los Deploy Logs en unos segundos' });
+  revisarYNotificar().catch(err => console.error('[CRON] Error en revisión manual:', err.message));
 });
 
 app.listen(PORT, () => {
