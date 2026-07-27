@@ -1,0 +1,20 @@
+{
+  "name": "el-dayli-cio",
+  "version": "1.0.0",
+  "description": "App de control de recaudacion diaria para triciclo electrico",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "nodemailer": "^6.9.16",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.7"
+  }
+}
