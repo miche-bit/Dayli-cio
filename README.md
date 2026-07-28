@@ -35,18 +35,20 @@ Abre `http://localhost:3000` en el navegador. La primera vez, ve a la sección *
 
 > Nota: verás un aviso `ExperimentalWarning: SQLite is an experimental feature`. Es normal — es información de Node, no un error. La API de `node:sqlite` es estable para este uso.
 
-## 2. Configurar el envío de correos (Gmail)
+## 2. Configurar el envío de correos (Resend)
 
-1. Activa la verificación en 2 pasos en tu cuenta de Gmail: https://myaccount.google.com/security
-2. Genera una "Contraseña de aplicación": https://myaccount.google.com/apppasswords
+Se usa **Resend** en vez de Gmail/SMTP porque Railway bloquea las conexiones SMTP salientes en los planes Hobby/Free — con Resend el correo se envía por una API HTTPS normal, que sí funciona sin restricciones.
+
+1. Crea una cuenta gratis en https://resend.com (no pide tarjeta; el plan gratis incluye 100 correos/día).
+2. Dentro del dashboard, ve a **API Keys → Create API Key**, y copia el valor (empieza con `re_`).
 3. En tu `.env`:
    ```
-   SMTP_USER=tu_correo@gmail.com
-   SMTP_PASS=la_contraseña_de_16_caracteres_generada
+   RESEND_API_KEY=re_b3tz4eFA
+   RESEND_FROM=El Dayli-cio <onboarding@resend.dev>
    ```
-4. **No uses tu contraseña normal de Gmail** — Google la rechaza para este tipo de conexión.
+4. El remitente `onboarding@resend.dev` viene habilitado por defecto en cualquier cuenta nueva de Resend — no hace falta configurar nada más para empezar a mandar correos. Si más adelante quieres que el remitente sea tu propio dominio (ej. `avisos@tudominio.com`), en Resend puedes verificar un dominio propio y cambiar `RESEND_FROM` a esa dirección.
 
-Si dejas `SMTP_USER`/`SMTP_PASS` vacíos, la app sigue funcionando en **modo simulado**: en vez de mandar el correo, imprime en la consola qué hubiera enviado. Útil para probar todo el flujo antes de configurar Gmail.
+Si dejas `RESEND_API_KEY` vacío, la app sigue funcionando en **modo simulado**: en vez de mandar el correo, imprime en la consola qué hubiera enviado. Útil para probar todo el flujo antes de crear la cuenta de Resend.
 
 Puedes forzar una revisión manual en cualquier momento (sin esperar a las 9pm) visitando:
 ```
@@ -87,10 +89,8 @@ git push -u origin main
 ### Paso 3 — Configura las variables de entorno
 En el proyecto, ve a tu servicio → pestaña **Variables** → **Raw Editor**, y pega (ajustando tus datos reales):
 ```
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_USER=tu_correo@gmail.com
-SMTP_PASS=tu_contraseña_de_aplicacion
+RESEND_API_KEY=re_tu_api_key_aqui
+RESEND_FROM=El Dayli-cio <onboarding@resend.dev>
 CRON_SCHEDULE=0 21 * * *
 TZ=America/Havana
 DATA_DIR=/data

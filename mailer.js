@@ -1,48 +1,19 @@
-// mailer.js — Envío de correos de recordatorio con Nodemailer
+// mailer.js — Envío de correos de recordatorio con Resend (API HTTPS)
+//
+// Se usa Resend en vez de SMTP/Nodemailer porque Railway (plan Hobby y
+// planes inferiores) bloquea las conexiones salientes a los puertos SMTP
+// (465, 587), lo que hace que el envío por Gmail se cuelgue con timeout.
+// Resend envía el correo a través de una API HTTPS normal (igual que
+// cualquier fetch), que no está bloqueada.
 require('dotenv').config();
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-function crearTransportador() {
-  // Configurado para Gmail por defecto (usa una "Contraseña de aplicación",
-  // no la contraseña normal de la cuenta). Se puede cambiar de proveedor
-  // editando las variables de entorno en .env
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT || 465),
-    secure: true,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    // Timeouts explícitos: sin esto, si Gmail no responde (credenciales
-    // mal formadas, firewall saliente, etc.) la petición se queda colgada
-    // indefinidamente en vez de fallar con un error claro.
-    connectionTimeout: 10000, // 10s para establecer conexión TCP
-    greetingTimeout: 10000,   // 10s para el saludo SMTP inicial
-    socketTimeout: 15000,     // 15s de inactividad en el socket
-  });
-}
-
-async function enviarRecordatorio(correos, fechaLegible, vehiculosPendientes = []) {
-  if (!correos.length) return { enviado: false, motivo: 'Sin correos configurados' };
-  if (!vehiculosPendientes.length) return { enviado: false, motivo: 'Sin vehículos pendientes' };
-
+function construirHtml(fechaLegible, vehiculosPendientes, palabraVehiculo) {
   const listaHtml = vehiculosPendientes.map(nombre => `
     <li style="margin-bottom:6px; color:#fff;">🛺 ${nombre}</li>
   `).join('');
 
-  const listaPlana = vehiculosPendientes.join(', ');
-
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.log(`[MODO SIMULADO] Se enviaría recordatorio a: ${correos.join(', ')} — vehículos pendientes (${fechaLegible}): ${listaPlana}`);
-    return { enviado: false, motivo: 'Faltan credenciales SMTP (modo simulado)' };
-  }
-
-  const transportador = crearTransportador();
-
-  const palabraVehiculo = vehiculosPendientes.length === 1 ? 'vehículo' : 'vehículos';
-
-  const html = `
+  return `
   <div style="font-family: Segoe UI, Arial, sans-serif; background:#0f1115; padding:32px; color:#e8e8ec;">
     <div style="max-width:480px; margin:0 auto; background:#181b22; border-radius:16px; padding:32px; border:1px solid #2a2f3a;">
       <h1 style="color:#ffb703; font-size:22px; margin:0 0 8px;">🛺 El Dayli-cio</h1>
@@ -60,21 +31,48 @@ async function enviarRecordatorio(correos, fechaLegible, vehiculosPendientes = [
       </div>
     </div>
   </div>`;
+}
+
+async function enviarRecordatorio(correos, fechaLegible, vehiculosPendientes = []) {
+  if (!correos.length) return { enviado: false, motivo: 'Sin correos configurados' };
+  if (!vehiculosPendientes.length) return { enviado: false, motivo: 'Sin vehículos pendientes' };
+
+  const palabraVehiculo = vehiculosPendientes.length === 1 ? 'vehículo' : 'vehículos';
+  const listaPlana = vehiculosPendientes.join(', ');
+
+  if (!process.env.RESEND_API_KEY) {
+    console.log(`[MODO SIMULADO] Se enviaría recordatorio a: ${correos.join(', ')} — vehículos pendientes (${fechaLegible}): ${listaPlana}`);
+    return { enviado: false, motivo: 'Falta RESEND_API_KEY (modo simulado)' };
+  }
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const html = construirHtml(fechaLegible, vehiculosPendientes, palabraVehiculo);
+
+  // Remitente: mientras no se verifique un dominio propio en Resend, hay
+  // que usar exactamente esta dirección de prueba que Resend habilita
+  // por defecto para todas las cuentas nuevas.
+  const remitente = process.env.RESEND_FROM || 'El Dayli-cio <onboarding@resend.dev>';
 
   console.log(`[MAILER] Intentando enviar a: ${correos.join(', ')}...`);
 
   try {
-    await transportador.sendMail({
-      from: `"El Dayli-cio" <${process.env.SMTP_USER}>`,
-      to: correos.join(', '),
+    const { data, error } = await resend.emails.send({
+      from: remitente,
+      to: correos,
       subject: `⚠️ ${vehiculosPendientes.length} ${palabraVehiculo} sin registrar hoy (${fechaLegible})`,
       html,
     });
-    console.log('[MAILER] Correo enviado con éxito');
+
+    if (error) {
+      console.error('[MAILER] ERROR al enviar correo:', error.message || error);
+      return { enviado: false, motivo: `Error Resend: ${error.message || JSON.stringify(error)}` };
+    }
+
+    console.log('[MAILER] Correo enviado con éxito, id:', data?.id);
     return { enviado: true };
   } catch (error) {
-    console.error('[MAILER] ERROR al enviar correo:', error.message);
-    return { enviado: false, motivo: `Error SMTP: ${error.message}` };
+    console.error('[MAILER] ERROR inesperado al enviar correo:', error.message);
+    return { enviado: false, motivo: `Error inesperado: ${error.message}` };
   }
 }
 
